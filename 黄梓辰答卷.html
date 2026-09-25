@@ -1,1 +1,267 @@
 
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄梓辰同道中人检测器</title>
+    <style>
+        body {
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #e74c3c;
+            margin-top: 0;
+        }
+        .question {
+            margin: 25px 0;
+            font-size: 1.2em;
+            line-height: 1.6;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .option-btn {
+            padding: 12px 20px;
+            font-size: 1.1em;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        .option-btn:active {
+            transform: translateY(0);
+        }
+        .reject {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 1.3em;
+            margin: 25px 0;
+            animation: shake 0.5s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 1.4em;
+            margin: 25px 0;
+        }
+        /* hidden 类保留以便将来扩展使用 */
+        .hidden {
+            display: none;
+        }
+        .progress {
+            height: 6px;
+            background: #ecf0f1;
+            border-radius: 3px;
+            margin: 20px auto;
+            max-width: 400px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3498db;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 黄梓辰同道中人检测器</h1>
+        <p>请诚实地回答以下问题（仅限真·同道中人）</p>
+
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <!-- 问题容器 -->
+        <div id="questionArea">
+            <!-- 动态渲染问题与选项 -->
+        </div>
+    </div>
+
+    <script>
+        'use strict';
+
+        // === 常量配置 ===
+        const REJECT_MESSAGE = '你是不是暗恋黄梓辰，滚吧';
+        const SUCCESS_MESSAGE = '检测成功，你是我们的一员';
+        // 每一步“错误选择”的 key（即直接拒绝的选项），值为该题对应的拒绝选项 key
+        const REJECT_CHOICE = '2';
+
+        /**
+         * 问题配置
+         * @typedef {Object} Question
+         * @property {string} prompt          题目内容
+         * @property {Object<string,string>} options  选项 key 与描述
+         * @property {boolean} [isStart]      是否为开始题目（选“是”才继续）
+         * @property {boolean} [isFinal]      是否为最后一题（选对则通过检测）
+         * @property {string}  rejectChoice   本题的拒绝选项 key（默认使用全局 REJECT_CHOICE）
+         */
+        const QUESTIONS = [
+            {
+                prompt: '是否开始检测？',
+                options: { '1': '是', '2': '不是' },
+                isStart: true,
+            },
+            {
+                prompt: '梓辰是不是给？',
+                options: { '1': '是', '2': '不是' },
+            },
+            {
+                prompt: '同道中人，那你觉得梓辰肥不肥美',
+                options: { '1': '十分肥美', '2': '这是9100块腹肌的帅哥吧' },
+            },
+            {
+                prompt: '同道中人，那你觉得梓辰帅不帅',
+                options: { '1': '这是从下水道爬出来的老鼠吧', '2': '这是9100块腹肌的帅哥吧' },
+            },
+            {
+                prompt: '同道中人，那你觉得梓辰成绩好不好',
+                options: { '1': '很好', '2': '爱因斯坦' },
+                isFinal: true,
+            },
+        ];
+
+        // === 状态管理 ===
+        /** 当前步骤索引（对应 QUESTIONS 数组下标） */
+        let currentStep = 0;
+
+        // === DOM 引用 ===
+        const questionArea = document.getElementById('questionArea');
+        const progressBar = document.getElementById('progressBar');
+
+        // === 工具函数 ===
+
+        /** 更新进度条 */
+        function updateProgress() {
+            const total = QUESTIONS.length;
+            const percent = Math.min(100, ((currentStep + 1) / total) * 100);
+            progressBar.style.width = `${percent}%`;
+        }
+
+        /** 渲染结束页面（拒绝 / 成功） */
+        function renderResult(type) {
+            const isReject = type === 'reject';
+            const message = isReject ? REJECT_MESSAGE : SUCCESS_MESSAGE;
+            questionArea.innerHTML = `<div class="${isReject ? 'reject' : 'success'}">${message}</div>`;
+            // 结果页隐藏进度条
+            progressBar.parentElement.classList.add('hidden');
+        }
+
+        /**
+         * 渲染指定题目
+         * @param {number} index QUESTIONS 下标
+         */
+        function showQuestion(index) {
+            const q = QUESTIONS[index];
+            if (!q) {
+                return;
+            }
+
+            const optionsHtml = Object.entries(q.options)
+                .map(([key, desc]) => `<button class="option-btn" data-value="${key}">${key}. ${desc}</button>`)
+                .join('');
+
+            questionArea.innerHTML = `
+                <div class="question">${q.prompt}</div>
+                <div class="options">${optionsHtml}</div>
+            `;
+
+            // 事件委托：在容器上绑定一次即可（避免重复绑定）
+            questionArea.querySelectorAll('.option-btn').forEach((btn) => {
+                btn.addEventListener('click', onOptionClick);
+            });
+
+            updateProgress();
+        }
+
+        /** 选项点击事件处理 */
+        function onOptionClick(event) {
+            const choice = event.currentTarget.dataset.value;
+            if (choice === undefined) {
+                return;
+            }
+            handleChoice(choice);
+        }
+
+        /**
+         * 处理用户选择
+         * @param {string} choice 选项 key
+         */
+        function handleChoice(choice) {
+            const q = QUESTIONS[currentStep];
+            if (!q) {
+                return;
+            }
+
+            // 开始题：必须选“是”才继续，否则重新提问
+            if (q.isStart) {
+                if (choice === '1') {
+                    currentStep = 1;
+                    showQuestion(currentStep);
+                } else {
+                    // 保持当前步，重新提问（等价于刷新）
+                    showQuestion(currentStep);
+                }
+                return;
+            }
+
+            // 拒绝选项：命中即结束
+            const rejectChoice = q.rejectChoice ?? REJECT_CHOICE;
+            if (choice === rejectChoice) {
+                renderResult('reject');
+                return;
+            }
+
+            // 最后一题：通过则成功
+            if (q.isFinal) {
+                renderResult('success');
+                return;
+            }
+
+            // 进入下一题
+            currentStep += 1;
+            if (currentStep >= QUESTIONS.length) {
+                // 保险：越界直接判成功
+                renderResult('success');
+                return;
+            }
+            showQuestion(currentStep);
+        }
+
+        // === 初始化 ===
+        window.addEventListener('DOMContentLoaded', () => {
+            showQuestion(currentStep);
+        });
+    </script>
+</body>
+</html>
